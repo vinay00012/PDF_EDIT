@@ -8,6 +8,10 @@ A tool and visual web application designed to edit text directly on PDF files wh
 
 - **Exact Typography Matching**: Automatically detects font family, point size, baseline coordinate, and color (`#RRGGBB`).
 - **Bundled Fonts**: Includes the official Google `Roboto` font family (`Roboto-Bold`, `Roboto-Medium`, `Roboto-Regular`, `Roboto-Black`, `Roboto-Light`) for airline tickets and modern documents, plus full Windows system font matching (Arial, Calibri, Times New Roman, Segoe UI, etc.).
+- **🛡️ PDF Health & Fidelity Audit**: Automatically checks the health and similarity of your edited PDF against the original. Calculates a live fidelity score (e.g. 100% Pristine), verifies zero ghost text leaks, checks font vector embedding, and flags excessive scaling.
+- **👁️ "Compare / Peek Original" Mode**: Hold or click the `👁️ Compare` button (or hold the `O` key) to instantaneously toggle between the original and edited document for pixel-perfect comparison.
+- **📡 Deep Typography Scanning HUD**: When uploading, scans all vector paths, text spans, and font families with an animated progress radar.
+- **📝 Live Modifications Diff**: View all changes side-by-side with original vs edited text and a `[ 🎯 Focus ]` button to highlight edits directly on the canvas.
 - **Step-by-Step Undo**: Click the `↩ Undo` button (or press `Ctrl+Z` / `Cmd+Z`) to revert the previous edit one step back.
 - **Cancel / Clear Selection**: A dedicated `✕ Cancel` button lets you discard the current edit and view the full document without applying changes.
 - **Custom File Naming**: When clicking "Download", a naming dialog lets you choose and preview your custom filename before saving.

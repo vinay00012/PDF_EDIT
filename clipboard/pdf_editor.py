@@ -19,79 +19,87 @@ def normalize_font_name(font_name: str) -> str:
 def resolve_font_file(font_name: str, flags: int = 0) -> Optional[str]:
     """
     Finds matching TTF/OTF font file:
-    1. Checks local ./fonts folder for bundled fonts (e.g., Roboto-Bold, Roboto-Medium, Roboto-Regular).
+    1. Checks local ./fonts folder for bundled fonts (Roboto-Black, Roboto-Bold, Roboto-Medium, Roboto-Regular, Roboto-Light).
     2. Checks Windows system fonts (C:\\Windows\\Fonts).
-    Accurately detects bold, medium, and italic weights.
+    3. Falls back to bundled TrueType font with matching weight so Linux/Vercel embeds real glyphs.
+    Accurately detects black, bold, medium, light, and italic weights.
     """
     clean = normalize_font_name(font_name).lower()
     
-    # In PyMuPDF font flags:
-    # Bit 1 (2) = Italic
-    # Bit 4 (16) = Bold
-    is_bold = bool(flags & 16 or any(k in clean for k in ["bold", "black", "heavy"]))
-    is_medium = bool(any(k in clean for k in ["medium", "semibold", "demi"]))
+    # Weight & style detection
+    is_black = any(k in clean for k in ["black", "heavy", "ultrabold", "extra-bold", "extrabold", "900", "800"])
+    is_bold = bool(flags & 16 or any(k in clean for k in ["bold", "700"]))
+    is_medium = any(k in clean for k in ["medium", "semibold", "semi-bold", "demi", "600", "500"])
+    is_light = any(k in clean for k in ["light", "thin", "hairline", "300", "200", "100"])
     is_italic = bool(flags & 2 or any(k in clean for k in ["italic", "oblique"]))
 
     # 1. Search local ./fonts folder
     local_fonts_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "fonts"))
     if os.path.isdir(local_fonts_dir):
+        # Specific weight matching for bundled Roboto fonts
+        if is_black and os.path.isfile(os.path.join(local_fonts_dir, "Roboto-Black.ttf")):
+            return os.path.join(local_fonts_dir, "Roboto-Black.ttf")
+        if (is_bold or (flags & 16)) and os.path.isfile(os.path.join(local_fonts_dir, "Roboto-Bold.ttf")):
+            return os.path.join(local_fonts_dir, "Roboto-Bold.ttf")
+        if is_medium and os.path.isfile(os.path.join(local_fonts_dir, "Roboto-Medium.ttf")):
+            return os.path.join(local_fonts_dir, "Roboto-Medium.ttf")
+        if is_light and os.path.isfile(os.path.join(local_fonts_dir, "Roboto-Light.ttf")):
+            return os.path.join(local_fonts_dir, "Roboto-Light.ttf")
+        if any(k in clean for k in ["roboto", "sans", "helvetica", "arial"]) and os.path.isfile(os.path.join(local_fonts_dir, "Roboto-Regular.ttf")):
+            return os.path.join(local_fonts_dir, "Roboto-Regular.ttf")
+
+        # Generic name search in fonts folder
         for fname in os.listdir(local_fonts_dir):
             if fname.lower().endswith((".ttf", ".otf")):
                 name_part = os.path.splitext(fname)[0].lower()
-                # Check for exact or high-confidence match
-                if "roboto" in clean and "roboto" in name_part:
-                    if is_bold and "bold" in name_part:
-                        return os.path.join(local_fonts_dir, fname)
-                    if is_medium and "medium" in name_part:
-                        return os.path.join(local_fonts_dir, fname)
-                    if not is_bold and not is_medium and ("regular" in name_part or name_part == "roboto"):
-                        return os.path.join(local_fonts_dir, fname)
-                elif name_part in clean or clean in name_part:
+                if name_part in clean or clean in name_part:
                     return os.path.join(local_fonts_dir, fname)
 
     # 2. Search Windows system fonts
     fonts_dir = os.environ.get("WINDIR", r"C:\Windows") + r"\Fonts"
-    if not os.path.isdir(fonts_dir):
-        return None
+    if os.path.isdir(fonts_dir):
+        font_family_map = {
+            "arial": ("arial.ttf", "arialbd.ttf", "ariali.ttf", "arialbi.ttf"),
+            "calibri": ("calibri.ttf", "calibrib.ttf", "calibrii.ttf", "calibriz.ttf"),
+            "times": ("times.ttf", "timesbd.ttf", "timesi.ttf", "timesbi.ttf"),
+            "timesnewroman": ("times.ttf", "timesbd.ttf", "timesi.ttf", "timesbi.ttf"),
+            "segoe": ("segoeui.ttf", "segoeuib.ttf", "segoeuii.ttf", "segoeuez.ttf"),
+            "segoeui": ("segoeui.ttf", "segoeuib.ttf", "segoeuii.ttf", "segoeuez.ttf"),
+            "verdana": ("verdana.ttf", "verdanab.ttf", "verdanai.ttf", "verdanaz.ttf"),
+            "georgia": ("georgia.ttf", "georgiab.ttf", "georgiai.ttf", "georgiaz.ttf"),
+            "tahoma": ("tahoma.ttf", "tahomabd.ttf", "tahoma.ttf", "tahomabd.ttf"),
+            "consolas": ("consola.ttf", "consolab.ttf", "consolai.ttf", "consolaz.ttf"),
+            "courier": ("cour.ttf", "courbd.ttf", "couri.ttf", "courbi.ttf"),
+            "trebuchet": ("trebuc.ttf", "trebucbd.ttf", "trebucit.ttf", "trebucbi.ttf"),
+            "cambria": ("cambria.ttc", "cambriab.ttf", "cambriai.ttf", "cambriaz.ttf"),
+        }
 
-    # Mapping of font families to (Regular, Bold, Italic, Bold-Italic)
-    font_family_map = {
-        "arial": ("arial.ttf", "arialbd.ttf", "ariali.ttf", "arialbi.ttf"),
-        "calibri": ("calibri.ttf", "calibrib.ttf", "calibrii.ttf", "calibriz.ttf"),
-        "times": ("times.ttf", "timesbd.ttf", "timesi.ttf", "timesbi.ttf"),
-        "timesnewroman": ("times.ttf", "timesbd.ttf", "timesi.ttf", "timesbi.ttf"),
-        "segoe": ("segoeui.ttf", "segoeuib.ttf", "segoeuii.ttf", "segoeuez.ttf"),
-        "segoeui": ("segoeui.ttf", "segoeuib.ttf", "segoeuii.ttf", "segoeuez.ttf"),
-        "verdana": ("verdana.ttf", "verdanab.ttf", "verdanai.ttf", "verdanaz.ttf"),
-        "georgia": ("georgia.ttf", "georgiab.ttf", "georgiai.ttf", "georgiaz.ttf"),
-        "tahoma": ("tahoma.ttf", "tahomabd.ttf", "tahoma.ttf", "tahomabd.ttf"),
-        "consolas": ("consola.ttf", "consolab.ttf", "consolai.ttf", "consolaz.ttf"),
-        "courier": ("cour.ttf", "courbd.ttf", "couri.ttf", "courbi.ttf"),
-        "trebuchet": ("trebuc.ttf", "trebucbd.ttf", "trebucit.ttf", "trebucbi.ttf"),
-        "cambria": ("cambria.ttc", "cambriab.ttf", "cambriai.ttf", "cambriaz.ttf"),
-    }
+        for key, variants in font_family_map.items():
+            if key in clean:
+                idx = 0
+                if (is_bold or is_black) and is_italic:
+                    idx = 3
+                elif is_bold or is_black or is_medium:
+                    idx = 1
+                elif is_italic:
+                    idx = 2
+                candidate = os.path.join(fonts_dir, variants[idx])
+                if os.path.isfile(candidate):
+                    return candidate
+                candidate_reg = os.path.join(fonts_dir, variants[0])
+                if os.path.isfile(candidate_reg):
+                    return candidate_reg
 
-    # For general sans-serif fonts not installed (fallback mapping)
-    if any(k in clean for k in ["roboto", "helvetica", "sans"]):
-        target_family = "arial"
-    else:
-        target_family = None
-
-    for key, variants in font_family_map.items():
-        if key in clean or (target_family and key == target_family):
-            idx = 0
-            if is_bold and is_italic:
-                idx = 3
-            elif is_bold or is_medium:
-                idx = 1
-            elif is_italic:
-                idx = 2
-            candidate = os.path.join(fonts_dir, variants[idx])
-            if os.path.isfile(candidate):
-                return candidate
-            candidate_reg = os.path.join(fonts_dir, variants[0])
-            if os.path.isfile(candidate_reg):
-                return candidate_reg
+    # 3. Universal Fallback: Use bundled Roboto matching the weight for Linux/Vercel embedding
+    if os.path.isdir(local_fonts_dir):
+        if is_black and os.path.isfile(os.path.join(local_fonts_dir, "Roboto-Black.ttf")):
+            return os.path.join(local_fonts_dir, "Roboto-Black.ttf")
+        if (is_bold or (flags & 16)) and os.path.isfile(os.path.join(local_fonts_dir, "Roboto-Bold.ttf")):
+            return os.path.join(local_fonts_dir, "Roboto-Bold.ttf")
+        if is_medium and os.path.isfile(os.path.join(local_fonts_dir, "Roboto-Medium.ttf")):
+            return os.path.join(local_fonts_dir, "Roboto-Medium.ttf")
+        if os.path.isfile(os.path.join(local_fonts_dir, "Roboto-Regular.ttf")):
+            return os.path.join(local_fonts_dir, "Roboto-Regular.ttf")
 
     return None
 
@@ -145,27 +153,25 @@ def get_base14_fallback(font_name: str, flags: int = 0) -> str:
 
 def register_page_font(page: pymupdf.Page, font_name: str, flags: int, font_cache: dict) -> Tuple[str, Optional[str]]:
     """
-    Registers the font on the page with a UNIQUE alias derived from font name and weight
-    to avoid dictionary collisions on the PDF page.
+    Registers the font on the page with a weight-specific alias.
+    Ensures font is present in the page dictionary even after redaction resets it.
     """
-    clean = normalize_font_name(font_name)
     font_file = resolve_font_file(font_name, flags)
 
     if font_file and os.path.isfile(font_file):
-        # Generate alias unique to the specific font file (e.g. f_RobotoBold, f_arialbd)
         base = re.sub(r"[^a-zA-Z0-9]", "", os.path.splitext(os.path.basename(font_file))[0])
         alias = f"f_{base}"
         
-        # Check if already present on this page
-        existing_aliases = [f[4] for f in page.get_fonts()]
-        if alias in existing_aliases:
-            return alias, font_file
-
         try:
             page.insert_font(fontname=alias, fontfile=font_file)
             return alias, font_file
         except Exception:
-            pass
+            try:
+                unique_alias = f"f_{base}_{len(page.get_fonts()) + 1}"
+                page.insert_font(fontname=unique_alias, fontfile=font_file)
+                return unique_alias, font_file
+            except Exception:
+                pass
 
     fallback_alias = get_base14_fallback(font_name, flags)
     return fallback_alias, None
@@ -183,10 +189,12 @@ def replace_exact_span(
     auto_shrink: bool = False,
     bg_color: Tuple[float, float, float] = (1.0, 1.0, 1.0),
     font_cache: Optional[dict] = None,
+    orig_width: Optional[float] = None,
 ) -> bool:
     """
     Directly replaces an exact text span at its bounding box and baseline coordinates.
     Preserves exact font, size, and color.
+    Supports reference orig_width to prevent sticky shrinking on multiple edits.
     """
     if font_cache is None:
         font_cache = {}
@@ -201,8 +209,10 @@ def replace_exact_span(
     else:
         color_rgb = (0.0, 0.0, 0.0)
 
-    # 2. Compute final font size (auto-shrink if enabled and text overflows)
+    # 2. Compute final font size (auto-shrink if enabled and text overflows reference width)
     final_size = font_size
+    reference_width = orig_width if (orig_width and orig_width > 0) else target_rect.width
+
     if auto_shrink:
         try:
             font_file = resolve_font_file(font_name, flags)
@@ -212,10 +222,12 @@ def replace_exact_span(
                 f_obj = pymupdf.Font(get_base14_fallback(font_name, flags))
 
             new_width = f_obj.text_length(new_text, fontsize=font_size)
-            orig_width = target_rect.width
-            if new_width > orig_width and orig_width > 0:
-                scale = orig_width / new_width
+            if new_width > reference_width and reference_width > 0:
+                scale = reference_width / new_width
                 final_size = round(font_size * scale, 2)
+            else:
+                # Text fits inside reference boundary - restore to full target font_size!
+                final_size = font_size
         except Exception:
             final_size = font_size
 
@@ -231,6 +243,7 @@ def replace_exact_span(
         origin,
         new_text,
         fontname=registered_name,
+        fontfile=font_file,
         fontsize=final_size,
         color=color_rgb,
     )
@@ -307,6 +320,7 @@ def replace_text(
                 auto_shrink=auto_shrink,
                 bg_color=bg_color,
                 font_cache=font_cache,
+                orig_width=target_rect.width,
             )
             total_replaced += 1
 
